@@ -1,17 +1,19 @@
 import numpy as np
 from PIL import Image
 import cv2
+import matplotlib.pyplot as plt
+from matplotlib import style
 
 LENGTH = 4
 
-HM_EPISODES = 1
-STEPS = 200
-MOVE_PENALTY = 1  # feel free to tinker with these!
-ENEMY_PENALTY = 300  # feel free to tinker with these!
-CAR_REWARD = 1  # feel free to tinker with these!
-epsilon = 0.5  # randomness
+HM_EPISODES = 10000
+STEPS = 100
+MOVE_PENALTY = 300  # feel free to tinker with these!
+CAR_REWARD = 25  # feel free to tinker with these!
+epsilon = 0.9  # randomness
 EPS_DECAY = 0.9999  # Every episode will be epsilon*EPS_DECAY
-SHOW_EVERY = 1  # how often to play through env visually.
+SHOW_EVERY = 10000  # how often to play through env visually.
+PRINT_EVERY = 300
 
 start_q_table = None  # if we have a pickled Q table, we'll put the filename of it here.
 
@@ -73,6 +75,7 @@ print(q_table[0][0][0][0])
 episode_rewards = []
 
 for episode in range(HM_EPISODES):
+    episode_reward = 0
     if episode % SHOW_EVERY == 0:
         show = True
     else:
@@ -84,21 +87,10 @@ for episode in range(HM_EPISODES):
     cars_spawned = 0
 
     for step in range(STEPS):
-        if 0 == np.random.randint(0, 2):
-            lane = np.random.randint(0, 4)
-            if not grid[lane][0]:
-                cars[lane].append(Car(lane))
-                cars_spawned += 1
-        for lane in cars:
-            car_to_remove = None
-            for car in lane:
-                if car.move():
-                    car_to_remove = car
-                    number_of_cars += 1
-            try:
-                lane.remove(car_to_remove)
-            except ValueError:
-                continue
+        lane0 = len(cars[0]) - 1
+        lane1 = len(cars[1]) - 1
+        lane2 = len(cars[2]) - 1
+        lane3 = len(cars[3]) - 1
         obs = q_table[len(cars[0]) - 1][len(cars[1]) - 1][len(cars[2]) - 1][len(cars[3]) - 1]
         if np.random.random() > epsilon:
             action = np.argmax(obs)
@@ -106,6 +98,36 @@ for episode in range(HM_EPISODES):
             action = np.random.randint(0, 4)
 
         traffic_light = action
+        if 0 == np.random.randint(0, 1):
+            lane = np.random.randint(0, 4)
+            if not grid[lane][0]:
+                cars[lane].append(Car(lane))
+                cars_spawned += 1
+
+        cars_through = 0
+        for lane in cars:
+            car_to_remove = None
+            for car in lane:
+                if car.move():
+                    car_to_remove = car
+                    number_of_cars += 1
+                    cars_through += 1
+            try:
+                lane.remove(car_to_remove)
+            except ValueError:
+                continue
+        if cars_through == 1:
+            reward = CAR_REWARD
+        else:
+            reward = -MOVE_PENALTY
+
+        episode_reward += reward
+        new_obs = q_table[len(cars[0]) - 1][len(cars[1]) - 1][len(cars[2]) - 1][len(cars[3]) - 1]
+        max_future_q = np.argmax(new_obs)
+        current_q = obs[action]
+
+        new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
+        q_table[lane0][lane1][lane2][lane3][action] = new_q
 
         if show:
             env = np.zeros((LENGTH*2 + 1, LENGTH*2 + 1, 3), dtype=np.uint8)
@@ -128,8 +150,18 @@ for episode in range(HM_EPISODES):
             img = Image.fromarray(env, 'RGB')
             img = img.resize((300, 300))
             cv2.imshow("image", np.array(img))
-            if cv2.waitKey(100) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-        print(step)
-        print(grid)
-        print(len(cars[2]))
+
+    episode_rewards.append(episode_reward)
+    epsilon *= EPS_DECAY
+    if episode % PRINT_EVERY == 0:
+        print(episode)
+
+moving_avg = np.convolve(episode_rewards, np.ones((PRINT_EVERY,))/PRINT_EVERY, mode='valid')
+
+plt.plot([i for i in range(len(moving_avg))], moving_avg)
+plt.ylabel(f"Reward {PRINT_EVERY}ma")
+plt.xlabel("episode #")
+plt.show()
+
