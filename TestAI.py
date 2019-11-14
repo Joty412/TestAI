@@ -5,7 +5,7 @@ import cv2
 LENGTH = 4
 
 HM_EPISODES = 1
-STEPS = 400
+STEPS = 200
 MOVE_PENALTY = 1  # feel free to tinker with these!
 ENEMY_PENALTY = 300  # feel free to tinker with these!
 CAR_REWARD = 1  # feel free to tinker with these!
@@ -33,20 +33,27 @@ class Car:
         self.position = 0
         self.start = start
 
+    def __str__(self):
+        return self.position
+
     def move(self):
-        if self.position <= LENGTH:
+        if self.position <= LENGTH - 1:
             if self.position == LENGTH - 1:
                 if traffic_light == self.start:
                     self.position += 1
                     grid[self.start][self.position - 1] = False
-            elif self.position == 0:
-                self.position += 1
-                grid[self.start][self.position] = True
             elif not grid[self.start][self.position + 1]:
-                self.position += 1
-                grid[self.start][self.position - 1] = False
+                if self.position == 0:
+                    self.position += 1
+                    grid[self.start][self.position] = True
+                    grid[self.start][self.position - 1] = False
+                else:
+                    self.position += 1
+                    grid[self.start][self.position - 1] = False
+                    grid[self.start][self.position] = True
+            elif self.position == 0:
                 grid[self.start][self.position] = True
-        if self.position == LENGTH + 1:
+        if self.position == LENGTH:
             self.position += 1
             return True
         else:
@@ -61,7 +68,7 @@ if start_q_table is None:
                 for lane4 in range(LENGTH):
                     q_table[lane1][lane2][lane3][lane4] = [np.random.uniform(-5, 0) for i in range(4)]
 
-print(q_table)
+print(q_table[0][0][0][0])
 
 episode_rewards = []
 
@@ -74,24 +81,31 @@ for episode in range(HM_EPISODES):
     grid = [[False]*LENGTH, [False]*LENGTH, [False]*LENGTH, [False]*LENGTH]
     cars = [[], [], [], [], []]
     number_of_cars = 0
+    cars_spawned = 0
 
     for step in range(STEPS):
         if 0 == np.random.randint(0, 2):
             lane = np.random.randint(0, 4)
-            cars[lane].append(Car(lane))
+            if not grid[lane][0]:
+                cars[lane].append(Car(lane))
+                cars_spawned += 1
         for lane in cars:
             car_to_remove = None
             for car in lane:
                 if car.move():
+                    car_to_remove = car
                     number_of_cars += 1
-#           lane.remove(car_to_remove)
-        obs = q_table[len(cars[0])][len(cars[1])][len(cars[2])][len(cars[3])]
+            try:
+                lane.remove(car_to_remove)
+            except ValueError:
+                continue
+        obs = q_table[len(cars[0]) - 1][len(cars[1]) - 1][len(cars[2]) - 1][len(cars[3]) - 1]
         if np.random.random() > epsilon:
             action = np.argmax(obs)
         else:
             action = np.random.randint(0, 4)
 
-        traffic_light = 5
+        traffic_light = action
 
         if show:
             env = np.zeros((LENGTH*2 + 1, LENGTH*2 + 1, 3), dtype=np.uint8)
@@ -107,13 +121,15 @@ for episode in range(HM_EPISODES):
                             env[LENGTH][i] = d[CAR_N]
                         elif lane == 1:
                             env[2*LENGTH - i][LENGTH] = d[CAR_N]
-                        elif lane == 3:
+                        elif lane == 2:
                             env[LENGTH][2*LENGTH - i] = d[CAR_N]
                         else:
                             env[i][LENGTH] = d[CAR_N]
             img = Image.fromarray(env, 'RGB')
             img = img.resize((300, 300))
             cv2.imshow("image", np.array(img))
-            if cv2.waitKey(1000) & 0xFF == ord('q'):
+            if cv2.waitKey(100) & 0xFF == ord('q'):
                 break
         print(step)
+        print(grid)
+        print(len(cars[2]))
