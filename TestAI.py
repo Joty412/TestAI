@@ -157,6 +157,7 @@ for episode in range(HM_EPISODES):
     epsilon *= EPS_DECAY
     if episode % PRINT_EVERY == 0:
         print(episode)
+        print(episode_reward)
 
 moving_avg = np.convolve(episode_rewards, np.ones((PRINT_EVERY,))/PRINT_EVERY, mode='valid')
 
