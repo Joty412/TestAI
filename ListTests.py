@@ -1,3 +1,5 @@
+
+
 # Phases    123456789ABC
 phases = [0b001100001100,
           0b100001100001,
@@ -20,3 +22,8 @@ print(bin(phases[2] & ~ phases[12]))
 
 test = str(bin(phases[0]))
 print([bool(phases[2] & (1 << n)) for n in range(11, -1, -1)])
+
+a = 4
+a = False
+if not a:
+    print("a")
